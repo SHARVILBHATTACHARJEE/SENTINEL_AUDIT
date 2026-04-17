@@ -7,7 +7,9 @@ from fpdf import FPDF
 from datetime import datetime
 from typing import List, Dict, Any
 import os
+import sys
 import multiprocessing
+import threading
 import uvicorn
 
 # Import your custom logic
@@ -46,8 +48,39 @@ class ReportData(BaseModel):
 def read_root():
     return {"status": "Scanner API is running"}
 
+# --- Global Progress State ---
+scan_progress = {
+    "current": 0,
+    "total": 0
+}
+
+@api_router.get("/progress")
+def get_progress():
+    return scan_progress
+
+cancel_scan_flag = False
+
+@api_router.post("/cancel")
+def cancel_scan():
+    global cancel_scan_flag
+    cancel_scan_flag = True
+    return {"status": "Cancellation requested"}
+
 @api_router.post("/scan")
 def run_scan(request: ScanRequest):
+    global scan_progress
+    global cancel_scan_flag
+    scan_progress["current"] = 0
+    scan_progress["total"] = 0
+    cancel_scan_flag = False
+    
+    def progress_callback(current, total):
+        scan_progress["current"] = current
+        scan_progress["total"] = total
+
+    def check_cancel():
+        return cancel_scan_flag
+
     scanner = PortScanner()
     results = scanner.scan_target(
         request.target, 
@@ -55,7 +88,9 @@ def run_scan(request: ScanRequest):
         request.end_port,
         request.scan_tcp,
         request.scan_udp,
-        request.common_ports_only
+        request.common_ports_only,
+        progress_callback=progress_callback,
+        check_cancel=check_cancel
     )
     
     scanned_range = "Common Ports" if request.common_ports_only else f"{request.start_port}-{request.end_port}"
@@ -106,7 +141,6 @@ def download_pdf(data: ReportData):
                 pdf.multi_cell(0, 5, f"    Vulnerability: {vulnerability_check}", 0, 1)
                 pdf.ln(5)
 
-
         # Save PDF to a temporary file
         temp_pdf_path = "report.pdf"
         pdf.output(temp_pdf_path)
@@ -127,7 +161,14 @@ app.include_router(api_router)
 
 # Define the path to your frontend build folder (dist)
 # Change this path to where your 'dist' folder is located relative to main.py
-frontend_path = os.path.join(os.path.dirname(__file__), "dist")
+if getattr(sys, 'frozen', False):
+    # PyInstaller extracts bundled files to sys._MEIPASS
+    base_dir = sys._MEIPASS
+else:
+    # Normal execution path (relative from backend/main.py upwards)
+    base_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+
+frontend_path = os.path.join(base_dir, "dist")
 
 if os.path.exists(frontend_path):
     # Mount the 'assets' folder specifically for CSS/JS files
@@ -141,12 +182,24 @@ else:
     # If dist doesn't exist yet, show a reminder during development
     @app.get("/")
     def dev_mode():
-        return {"message": "Frontend build not found. Run 'npm run build' and move 'dist' to the backend folder."}
+        return {"message": "Frontend build not found. Run 'npm run build' from the project root."}
+
+import sys
+import multiprocessing
+import uvicorn
+import socket
+
+# ... rest of the imports ...
+def get_free_port():
+    with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
+        s.bind(('', 0))
+        return s.getsockname()[1]
 
 if __name__ == "__main__":
-    # Required for Windows EXE support when using PyInstaller
+    # Required for Windows EXE support when using PyInstaller wrapping python multiprocessing
     multiprocessing.freeze_support()
     
-    # Run server on port 8000
-    # Set reload=False when running as a packaged application
-    uvicorn.run("backend.main:app", host="0.0.0.0", port=8000, reload=False)
+    # Run the FastAPI web server
+    # Get a dynamic free port or use a specific one
+    port = 8000 # Keep fixed for now so Electron knows where to look
+    uvicorn.run(app, host="127.0.0.1", port=port, log_level="error")

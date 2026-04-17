@@ -2,22 +2,22 @@
 
 :root {
   --bg-primary: #050505;
-  --bg-secondary: #0a0a0a;
-  --bg-card: rgba(20, 20, 20, 0.6);
+  --bg-secondary: #111111;
+  --bg-card: #111111;
   
-  --accent-cyan: #00f3ff;
-  --accent-purple: #bc13fe;
+  --accent-orange: #ff6b00;
+  --accent-gray: #333333;
   --accent-green: #0aff0a;
   --accent-red: #ff2a2a;
   
   --text-primary: #ffffff;
-  --text-secondary: #a1a1aa;
+  --text-secondary: #888888;
   
   --font-display: 'Orbitron', sans-serif;
   --font-body: 'Inter', sans-serif;
   
-  --glass-border: 1px solid rgba(255, 255, 255, 0.1);
-  --glass-shadow: 0 4px 30px rgba(0, 0, 0, 0.1);
+  --glass-border: 1px solid #333;
+  --glass-shadow: 0 4px 30px rgba(0, 0, 0, 0.5);
 }
 
 body {
@@ -25,11 +25,26 @@ body {
   color: var(--text-primary);
   font-family: var(--font-body);
   overflow-x: hidden;
+  overflow-y: auto; /* Allow scrolling if really needed but hidden */
   min-height: 100vh;
-  /* Glowing background effect */
-  background-image: 
-    radial-gradient(circle at 10% 20%, rgba(188, 19, 254, 0.1) 0%, transparent 20%),
-    radial-gradient(circle at 90% 80%, rgba(0, 243, 255, 0.1) 0%, transparent 20%);
+  user-select: none;
+  -webkit-user-select: none;
+}
+
+/* Hide scrollbar for Chrome, Safari and Opera */
+::-webkit-scrollbar {
+  display: none;
+}
+
+/* Hide scrollbar for IE, Edge and Firefox */
+* {
+  -ms-overflow-style: none;  /* IE and Edge */
+  scrollbar-width: none;  /* Firefox */
+}
+
+.selectable-text {
+  user-select: text;
+  -webkit-user-select: text;
 }
 
 /* Cyberpunk Scanline Effect */
@@ -78,12 +93,12 @@ h1, h2, h3 {
 }
 
 /* Custom Checkbox Styling */
-.custom-checkbox, .custom-checkbox-purple {
+.custom-checkbox {
   display: flex;
   align-items: center;
   padding: 0.75rem;
   border-radius: 0.375rem;
-  border: 1px solid #374151; /* gray-700 */
+  border: 1px solid #333;
   background-color: var(--bg-secondary);
   cursor: pointer;
   transition: all 0.2s ease-in-out;
@@ -91,29 +106,21 @@ h1, h2, h3 {
   font-weight: 600;
 }
 
-.custom-checkbox input[type="checkbox"],
-.custom-checkbox-purple input[type="checkbox"] {
+.custom-checkbox input[type="checkbox"] {
   display: none; /* Hide the default checkbox */
 }
 
-.custom-checkbox:hover, .custom-checkbox-purple:hover {
-  background-color: #1f2937; /* gray-800 */
+.custom-checkbox:hover {
+  background-color: #1a1a1a;
 }
 
 .custom-checkbox.active {
-  background-color: rgba(0, 243, 255, 0.1);
-  border-color: var(--accent-cyan);
-  color: var(--accent-cyan);
+  background-color: rgba(255, 107, 0, 0.1);
+  border-color: var(--accent-orange);
+  color: var(--accent-orange);
 }
 
-.custom-checkbox-purple.active {
-    background-color: rgba(188, 19, 254, 0.1);
-    border-color: var(--accent-purple);
-    color: var(--accent-purple);
-}
-
-.custom-checkbox.active::before,
-.custom-checkbox-purple.active::before {
+.custom-checkbox.active::before {
   content: '✔';
   margin-right: 0.5rem;
   font-size: 1rem;

@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Target, Play, ShieldQuestion, SlidersHorizontal, Zap } from 'lucide-react';
+import { Target, Play, SlidersHorizontal, Zap } from 'lucide-react';
 
 const ScanForm = ({ onScan, isScanning }) => {
     const [target, setTarget] = useState('127.0.0.1');
@@ -37,14 +37,15 @@ const ScanForm = ({ onScan, isScanning }) => {
         <form onSubmit={handleSubmit} className="space-y-6">
             {/* Target Input */}
             <div className="space-y-2">
-                <label className="block text-xs font-bold tracking-wider text-[var(--accent-cyan)]">TARGET HOST / IP</label>
+                <label className="block text-xs font-bold tracking-wider text-[var(--accent-orange)]">TARGET CONFIG</label>
                 <div className="relative group">
                     <Target className="absolute left-3 top-3 w-5 h-5 text-[var(--text-secondary)]" />
                     <input
                         type="text"
                         value={target}
                         onChange={(e) => setTarget(e.target.value)}
-                        className="w-full bg-[var(--bg-secondary)] border border-gray-800 rounded p-2 pl-10 text-white focus:outline-none focus:border-[var(--accent-cyan)] font-mono"
+                        placeholder="Target IP Address or Hostname"
+                        className="w-full bg-[var(--bg-secondary)] border border-[#333] rounded p-3 pl-10 text-white focus:outline-none focus:border-[var(--accent-orange)] font-mono transition-colors"
                         required
                     />
                 </div>
@@ -52,7 +53,6 @@ const ScanForm = ({ onScan, isScanning }) => {
 
             {/* Scan Type Selection */}
             <div className="space-y-3">
-                <label className="block text-xs font-bold tracking-wider text-[var(--accent-cyan)]">SCAN TYPE</label>
                 <div className="grid grid-cols-2 gap-3">
                     <label className={`custom-checkbox ${scanTcp ? 'active' : ''}`}>
                         <input type="checkbox" checked={scanTcp} onChange={(e) => setScanTcp(e.target.checked)} />
@@ -63,14 +63,14 @@ const ScanForm = ({ onScan, isScanning }) => {
                         UDP Scan
                     </label>
                 </div>
-                {scanTypeWarning && <p className="text-xs text-red-500 mt-1">{scanTypeWarning}</p>}
+                {scanTypeWarning && <p className="text-xs text-[var(--accent-red)] mt-1">{scanTypeWarning}</p>}
             </div>
             
             {/* Port Selection */}
-            <div className="space-y-3">
-                <label className="block text-xs font-bold tracking-wider text-[var(--accent-purple)]">PORT SELECTION</label>
+            <div className="space-y-3 pt-2 border-t border-[#333]">
+                <label className="block text-xs font-bold tracking-wider text-[var(--text-secondary)]">PORT RANGE</label>
                 
-                <label className={`custom-checkbox-purple ${commonPortsOnly ? 'active' : ''}`}>
+                <label className={`custom-checkbox ${commonPortsOnly ? 'active' : ''}`}>
                     <input type="checkbox" checked={commonPortsOnly} onChange={handleCommonPortsChange} />
                     Common Ports Only
                 </label>
@@ -81,7 +81,7 @@ const ScanForm = ({ onScan, isScanning }) => {
                         placeholder="Start Port"
                         value={startPort}
                         onChange={(e) => setStartPort(e.target.value)}
-                        className="w-full bg-[var(--bg-secondary)] border border-gray-800 rounded p-2 text-white focus:border-[var(--accent-purple)] font-mono disabled:opacity-50"
+                        className="w-full bg-[var(--bg-secondary)] border border-[#333] rounded p-3 text-white focus:outline-none focus:border-[var(--accent-orange)] font-mono disabled:opacity-50 transition-colors"
                         required
                         disabled={commonPortsOnly || isScanning}
                     />
@@ -90,7 +90,7 @@ const ScanForm = ({ onScan, isScanning }) => {
                         placeholder="End Port"
                         value={endPort}
                         onChange={(e) => setEndPort(e.target.value)}
-                        className="w-full bg-[var(--bg-secondary)] border border-gray-800 rounded p-2 text-white focus:border-[var(--accent-purple)] font-mono disabled:opacity-50"
+                        className="w-full bg-[var(--bg-secondary)] border border-[#333] rounded p-3 text-white focus:outline-none focus:border-[var(--accent-orange)] font-mono disabled:opacity-50 transition-colors"
                         required
                         disabled={commonPortsOnly || isScanning}
                     />
@@ -100,7 +100,7 @@ const ScanForm = ({ onScan, isScanning }) => {
                     type="button"
                     onClick={handleFullScanClick}
                     disabled={isScanning}
-                    className="w-full py-2 px-3 text-sm rounded bg-gray-800/50 text-[var(--text-secondary)] hover:bg-gray-800/80 transition-colors flex items-center justify-center gap-2"
+                    className="w-full py-2 px-3 text-sm rounded bg-[#1a1a1a] text-[var(--text-secondary)] hover:bg-[#222] border border-[#333] transition-colors flex items-center justify-center gap-2 mt-2 cursor-pointer disabled:cursor-not-allowed"
                 >
                     <Zap className="w-4 h-4" /> Full Scan (1–65535)
                 </button>
@@ -110,9 +110,9 @@ const ScanForm = ({ onScan, isScanning }) => {
             <button
                 type="submit"
                 disabled={isScanning}
-                className={`w-full py-3 px-4 rounded font-bold uppercase tracking-widest flex items-center justify-center gap-2 transition-all duration-300 transform hover:scale-105 ${isScanning ? 'bg-gray-800 cursor-not-allowed' : 'bg-gradient-to-r from-[var(--accent-cyan)] to-[var(--accent-purple)]'}`}
+                className={`w-full py-4 px-4 mt-4 rounded font-bold uppercase tracking-widest flex items-center justify-center gap-2 transition-all duration-300 ${isScanning ? 'bg-[#333] text-[#888] cursor-not-allowed' : 'bg-[var(--accent-orange)] text-black hover:bg-[#ff8533] cursor-pointer'}`}
             >
-                {isScanning ? 'SCANNING...' : <><Play className="w-5 h-5" /> INITIATE SCAN</>}
+                {isScanning ? 'SCANNING...' : <><Play className="w-5 h-5 fill-current" /> START SCAN</>}
             </button>
         </form>
     );
