@@ -95,12 +95,14 @@ class PortScanner:
             async with sem:
                 result = None
                 try:
+                    # Give remote servers up to 0.8s to establish the TCP handshake
                     fut = asyncio.open_connection(target, port)
-                    reader, writer = await asyncio.wait_for(fut, timeout=0.2)
+                    reader, writer = await asyncio.wait_for(fut, timeout=0.8)
                     
                     try:
+                        # Wait up to 1.0s for the server to reply with its software banner
                         banner_fut = reader.read(1024)
-                        data = await asyncio.wait_for(banner_fut, timeout=0.1)
+                        data = await asyncio.wait_for(banner_fut, timeout=1.0)
                         if data:
                             banner = data.decode(errors='ignore').strip()
                         else:
