@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Terminal, ShieldAlert, Wifi, Activity, Download } from 'lucide-react';
+import { Terminal, ShieldAlert, Wifi, Activity, Download, Globe } from 'lucide-react';
 import ScanForm from './components/scanform';
 import ResultsTable from './components/ResultsTable';
 
@@ -8,6 +8,7 @@ function App() {
     const [isScanning, setIsScanning] = useState(false);
     const [error, setError] = useState(null);
     const [scanStats, setScanStats] = useState({ target: '', range: '' });
+    const [scanMode, setScanMode] = useState('port'); // 'port' or 'ping'
     
     // NEW: State to track if a scan has actually happened
     const [hasScanned, setHasScanned] = useState(false);
@@ -19,6 +20,7 @@ function App() {
         setError(null);
         setHasScanned(true); 
         setProgress(0);
+        setScanMode('port');
 
         const rangeText = commonPortsOnly ? "Common Ports" : `${startPort}-${endPort}`;
         setScanStats({ target, range: rangeText });
@@ -63,6 +65,49 @@ function App() {
             setResults(data.results);
             // Update scan stats with the range returned from the backend for consistency
             setScanStats({ target, range: data.scanned_range });
+        } catch (err) {
+            setError(err.message);
+        } finally {
+            clearInterval(progressInterval);
+            setProgress(100);
+            setIsScanning(false);
+        }
+    };
+
+    const handlePingSweep = async (subnet) => {
+        setIsScanning(true);
+        setResults([]);
+        setError(null);
+        setHasScanned(true); 
+        setProgress(0);
+        setScanMode('ping');
+        setScanStats({ target: subnet, range: "Network Map" });
+
+        const progressInterval = setInterval(async () => {
+            try {
+                const res = await fetch('/api/progress');
+                if (res.ok) {
+                    const data = await res.json();
+                    if (data.total > 0) {
+                        setProgress(Math.round((data.current / data.total) * 100));
+                    }
+                }
+            } catch (e) {}
+        }, 500);
+
+        try {
+            const response = await fetch('/api/ping-sweep', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ subnet }),
+            });
+
+            if (!response.ok) {
+                throw new Error('Failed to connect to scanner backend');
+            }
+
+            const data = await response.json();
+            setResults(data.alive_hosts);
         } catch (err) {
             setError(err.message);
         } finally {
@@ -141,7 +186,7 @@ function App() {
                             <div className="w-1.5 h-6 bg-[var(--accent-orange)] rounded-full"></div>
                             <h2 className="text-lg font-semibold tracking-wide">PARAMETERS</h2>
                         </div>
-                        <ScanForm onScan={handleScan} isScanning={isScanning} />
+                        <ScanForm onScan={handleScan} onPingSweep={handlePingSweep} isScanning={isScanning} />
                     </section>
                 </div>
 
@@ -170,7 +215,9 @@ function App() {
                         </div>
                         
                         <div className="bg-[var(--bg-secondary)] border border-[#333] rounded-xl p-6 shadow-lg flex flex-col justify-center">
-                            <div className="text-[var(--text-secondary)] text-sm font-semibold mb-2 uppercase tracking-wider">Open Ports Found</div>
+                            <div className="text-[var(--text-secondary)] text-sm font-semibold mb-2 uppercase tracking-wider">
+                                {scanMode === 'port' ? 'Open Ports Found' : 'Alive Hosts'}
+                            </div>
                             <div className="text-4xl font-bold text-white">
                                 {hasScanned && !isScanning ? results.length : '-'}
                             </div>
@@ -215,7 +262,21 @@ function App() {
                         {/* 2. Results State */}
                         {!isScanning && hasScanned && results.length > 0 && (
                             <div className="flex-1 overflow-auto">
-                                <ResultsTable results={results} />
+                                {scanMode === 'port' ? (
+                                    <ResultsTable results={results} />
+                                ) : (
+                                    <div className="grid grid-cols-2 lg:grid-cols-3 gap-4 p-2 animate-fade-in">
+                                        {results.map((ip, idx) => (
+                                            <div key={idx} className="bg-black/60 border border-[var(--accent-orange)]/40 p-4 rounded-lg flex items-center justify-between hover:border-[var(--accent-orange)] transition-colors cursor-pointer group shadow-lg">
+                                                <div className="flex items-center gap-3">
+                                                    <div className="w-2 h-2 rounded-full bg-[#0aff0a] animate-pulse"></div>
+                                                    <span className="font-mono text-white text-lg tracking-wide">{ip}</span>
+                                                </div>
+                                                <Globe className="w-5 h-5 text-[var(--accent-orange)] opacity-50 group-hover:opacity-100 transition-opacity" />
+                                            </div>
+                                        ))}
+                                    </div>
+                                )}
                             </div>
                         )}
 
@@ -224,7 +285,9 @@ function App() {
                             <div className="flex-1 flex flex-col items-center justify-center text-[var(--text-secondary)] opacity-80">
                                 <ShieldAlert className="w-20 h-20 mb-6 text-[#555]" />
                                 <p className="font-bold tracking-widest text-lg">SCAN COMPLETE</p>
-                                <p className="text-sm mt-2">NO OPEN PORTS DETECTED</p>
+                                <p className="text-sm mt-2 font-mono">
+                                    {scanMode === 'port' ? 'NO OPEN PORTS DETECTED' : 'NO ALIVE HOSTS FOUND ON SUBNET'}
+                                </p>
                             </div>
                         )}
 

@@ -95,10 +95,39 @@ async def run_scan(request: ScanRequest):
     
     scanned_range = "Common Ports" if request.common_ports_only else f"{request.start_port}-{request.end_port}"
 
+
     return {
         "target": request.target,
         "scanned_range": scanned_range,
         "results": results
+    }
+
+from backend.pingsweep import NetworkScanner
+
+class PingSweepRequest(BaseModel):
+    subnet: str
+
+@api_router.post("/ping-sweep")
+async def run_ping_sweep(request: PingSweepRequest):
+    global scan_progress
+    global cancel_scan_flag
+    scan_progress["current"] = 0
+    scan_progress["total"] = 0
+    cancel_scan_flag = False
+    
+    def progress_callback(current, total):
+        scan_progress["current"] = current
+        scan_progress["total"] = total
+        
+    def check_cancel():
+        return cancel_scan_flag
+
+    scanner = NetworkScanner()
+    alive_hosts = await scanner.scan_subnet(request.subnet, progress_callback, check_cancel)
+    
+    return {
+        "subnet": request.subnet,
+        "alive_hosts": alive_hosts
     }
 
 @api_router.post("/download/pdf")
