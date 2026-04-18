@@ -20,9 +20,18 @@ def parse_banner_keyword(banner: str) -> str:
     # Strip non-alphanumeric, keep dots and spaces
     clean = re.sub(r'[^a-zA-Z0-9\.\s]', ' ', banner).strip()
     words = clean.split()
-    if not words:
+    
+    # Filter out pure status numbers (like SMTP "220" or HTTP "200")
+    words = [w for w in words if not re.match(r'^\d+$', w)]
+    
+    # Filter out common noise protocols or generic terms
+    noise = {"esmtp", "smtp", "http", "ftp", "scanme.nmap.org", "ubuntu", "debian", "welcome", "ready"}
+    valid_words = [w for w in words if w.lower() not in noise]
+
+    if not valid_words:
         return ""
-    keyword = " ".join(words[:2]) # Take the first two words (e.g. OpenSSH 8.2)
+        
+    keyword = " ".join(valid_words[:2])
     if len(keyword) < 3:
         return ""
     return keyword
