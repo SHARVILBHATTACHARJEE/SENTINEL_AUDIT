@@ -67,7 +67,7 @@ def cancel_scan():
     return {"status": "Cancellation requested"}
 
 @api_router.post("/scan")
-def run_scan(request: ScanRequest):
+async def run_scan(request: ScanRequest):
     global scan_progress
     global cancel_scan_flag
     scan_progress["current"] = 0
@@ -82,7 +82,7 @@ def run_scan(request: ScanRequest):
         return cancel_scan_flag
 
     scanner = PortScanner()
-    results = scanner.scan_target(
+    results = await scanner.scan_target(
         request.target, 
         request.start_port, 
         request.end_port,
