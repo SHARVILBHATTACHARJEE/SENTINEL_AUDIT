@@ -13,6 +13,7 @@ const ResultsTable = ({ results }) => {
                             <th className="p-4 font-semibold pb-3">Port</th>
                             <th className="p-4 font-semibold pb-3">Status</th>
                             <th className="p-4 font-semibold pb-3">Service</th>
+                            <th className="p-4 font-semibold pb-3">Severity</th>
                             <th className="p-4 font-semibold pb-3">Banner / Info</th>
                             <th className="p-4 font-semibold pb-3 text-right">Action</th>
                         </tr>
@@ -34,6 +35,11 @@ const ResultsTable = ({ results }) => {
                                     <div className="flex items-center gap-2 text-white/90">
                                         <Server className="w-4 h-4 text-white/50" /> {res.service}
                                     </div>
+                                </td>
+                                <td className="p-4">
+                                    <span className={`px-2 py-1 rounded text-xs font-bold ${res.base_severity === 'CRITICAL' ? 'bg-[#ff2a2a]/20 text-[#ff2a2a]' : res.base_severity === 'HIGH' ? 'bg-[#ff8533]/20 text-[#ff8533]' : res.base_severity === 'LOW' ? 'bg-[#0aff0a]/20 text-[#0aff0a]' : 'bg-[#ffd700]/20 text-[#ffd700]'}`}>
+                                        {res.base_severity || 'LOW'}
+                                    </span>
                                 </td>
                                 <td className="p-4 text-white/50 truncate max-w-[200px] selectable-text">
                                     {res.banner || '-'}
@@ -115,7 +121,15 @@ const ResultsTable = ({ results }) => {
                                         <div className="space-y-4">
                                             {selectedResult.cve_data.map((cve, i) => (
                                                 <div key={i} className="bg-black/40 border border-[#333] p-3 rounded">
-                                                    <div className="text-sm font-bold text-[#ff4444] mb-1 selectable-text">{cve.id}</div>
+                                                    <div className="flex items-center justify-between mb-1">
+                                                        <div className="text-sm font-bold text-[#ff4444] selectable-text">{cve.id}</div>
+                                                        <div className="text-xs font-bold px-2 rounded tracking-widest" style={{
+                                                            color: cve.severity === 'CRITICAL' ? '#ff2a2a' : cve.severity === 'HIGH' ? '#ff8533' : '#ffd700',
+                                                            backgroundColor: cve.severity === 'CRITICAL' ? 'rgba(255,42,42,0.1)' : cve.severity === 'HIGH' ? 'rgba(255,133,51,0.1)' : 'rgba(255,215,0,0.1)'
+                                                        }}>
+                                                            {cve.severity} {(cve.baseScore > 0) ? `(${cve.baseScore})` : ''}
+                                                        </div>
+                                                    </div>
                                                     <div className="text-xs text-[var(--text-secondary)] leading-relaxed selectable-text">{cve.description}</div>
                                                 </div>
                                             ))}

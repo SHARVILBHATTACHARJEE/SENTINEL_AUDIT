@@ -51,7 +51,26 @@ def fetch_cves_sync(keyword: str):
                 cve_id = cve_data.get("id", "Unknown CVE")
                 descriptions = cve_data.get("descriptions", [])
                 desc_text = descriptions[0].get("value", "No description available.") if descriptions else "No description available."
-                results.append({"id": cve_id, "description": desc_text})
+                
+                # Extract CVSS Metrics
+                metrics = cve_data.get("metrics", {})
+                base_score = 0.0
+                severity = "UNKNOWN"
+                
+                for metric_key in ["cvssMetricV31", "cvssMetricV30", "cvssMetricV2"]:
+                    if metric_key in metrics and len(metrics[metric_key]) > 0:
+                        metric_data = metrics[metric_key][0]
+                        cvss_data = metric_data.get("cvssData", {})
+                        base_score = cvss_data.get("baseScore", 0.0)
+                        severity = metric_data.get("baseSeverity", cvss_data.get("baseSeverity", "UNKNOWN")).upper()
+                        break
+                        
+                results.append({
+                    "id": cve_id, 
+                    "description": desc_text,
+                    "baseScore": base_score,
+                    "severity": severity
+                })
             return results
     except Exception:
         return []
@@ -118,15 +137,31 @@ class PortScanner:
 
                     # Fetch CVES from NIST API based on grabbed banner
                     cve_data = await fetch_cves(banner)
-                    analysis = analyze_port(port, banner)
+                    vuln_data = analyze_port(port, banner)
+                    service_name = vuln_data['service']
+
+                    # Determine Baseline Port Severity
+                    critical_ports = {21, 22, 23, 139, 445, 1433, 1521, 2375, 3306, 3389, 4444, 1099}
+                    high_ports = {25, 53, 69, 111, 135, 161, 389, 512, 513, 514, 873, 2049, 5900, 6379, 9200}
                     
+                    base_severity = "LOW"
+                    if port in critical_ports:
+                        base_severity = "CRITICAL"
+                    elif port in high_ports:
+                        base_severity = "HIGH"
+                    elif vuln_data.get("attack_vector") != "Unknown / Target Dependent":
+                        base_severity = "MEDIUM"
+
                     result = {
                         "port": port,
-                        "service": f"{analysis['service']} (TCP)",
+                        "state": "open",
+                        "protocol": "tcp",
+                        "service": service_name,
                         "banner": banner,
+                        "attack_vector": vuln_data["attack_vector"],
+                        "vulnerability_check": vuln_data["vulnerability_check"],
                         "cve_data": cve_data,
-                        "attack_vector": analysis["attack_vector"],
-                        "vulnerability_check": analysis["vulnerability_check"]
+                        "base_severity": base_severity
                     }
                 except (asyncio.TimeoutError, ConnectionRefusedError, OSError, Exception):
                     pass
@@ -167,14 +202,27 @@ class PortScanner:
                     await asyncio.wait_for(protocol.response_received.wait(), timeout=0.5)
                     
                     banner = "UDP Response Detected"
-                    analysis = analyze_port(port, banner)
+                    vuln_data = analyze_port(port, banner)
+                    service_name = vuln_data['service']
+                    
+                    # UDP Severities
+                    critical_ports = {53, 69, 137, 161, 500}
+                    base_severity = "LOW"
+                    if port in critical_ports:
+                        base_severity = "HIGH"
+                    elif vuln_data.get("attack_vector") != "Unknown / Target Dependent":
+                        base_severity = "MEDIUM"
+                        
                     result = {
                         "port": port,
-                        "service": f"{analysis['service']} (UDP)",
+                        "state": "open",
+                        "protocol": "udp",
+                        "service": service_name,
                         "banner": banner,
-                        "cve_data": [], # No banner for UDP usually
-                        "attack_vector": analysis["attack_vector"],
-                        "vulnerability_check": "UDP Service Open. Vulnerable to amplification attacks if public."
+                        "attack_vector": vuln_data["attack_vector"],
+                        "vulnerability_check": vuln_data["vulnerability_check"],
+                        "cve_data": [],
+                        "base_severity": base_severity
                     }
                 except (asyncio.TimeoutError, ConnectionResetError, OSError, Exception):
                     pass

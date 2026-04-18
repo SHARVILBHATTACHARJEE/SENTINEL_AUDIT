@@ -41,7 +41,8 @@
     "lucide-react": "^0.292.0",
     "pptxgenjs": "^4.0.1",
     "react": "^18.2.0",
-    "react-dom": "^18.2.0"
+    "react-dom": "^18.2.0",
+    "react-force-graph-2d": "^1.29.1"
   },
   "devDependencies": {
     "@tailwindcss/postcss": "^4.1.18",

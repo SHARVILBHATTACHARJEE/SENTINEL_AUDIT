@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { Terminal, ShieldAlert, Wifi, Activity, Download, Globe } from 'lucide-react';
 import ScanForm from './components/scanform';
 import ResultsTable from './components/ResultsTable';
+import NetworkGraph from './components/NetworkGraph';
 
 function App() {
     const [results, setResults] = useState([]);
@@ -13,6 +14,45 @@ function App() {
     // NEW: State to track if a scan has actually happened
     const [hasScanned, setHasScanned] = useState(false);
     const [progress, setProgress] = useState(0);
+
+    // THREAT SCORE CALCULATION
+    const calculateThreatScore = () => {
+        if (!results || results.length === 0 || scanMode !== 'port') return 0;
+        
+        let maxBaseScore = 0;
+        let criticalCount = 0;
+        let highCount = 0;
+        
+        results.forEach(port => {
+            // Priority 1: Official NIST CVSS Score
+            if (port.cve_data && port.cve_data.length > 0) {
+                port.cve_data.forEach(cve => {
+                    if (cve.baseScore && cve.baseScore > maxBaseScore) maxBaseScore = cve.baseScore;
+                });
+            }
+            
+            // Priority 2: In-House Baselined Severity heuristics
+            if (port.base_severity === 'CRITICAL') criticalCount++;
+            if (port.base_severity === 'HIGH') highCount++;
+        });
+        
+        if (maxBaseScore > 0) {
+            return Math.min(100, Math.round(maxBaseScore * 10)); // e.g. 8.5 -> 85/100
+        }
+        
+        if (criticalCount > 0) return 90 + Math.min(9, criticalCount); // 91-99
+        if (highCount > 0) return 70 + Math.min(19, highCount * 5); // 75-89
+        return 40; // Default Baseline
+    };
+
+    const threatScore = calculateThreatScore();
+
+    const getScoreColor = (score) => {
+        if (score >= 90) return '#ff2a2a'; // Critical Red
+        if (score >= 70) return '#ff8533'; // High Orange
+        if (score >= 40) return '#ffd700'; // Medium Yellow
+        return '#0aff0a'; // Safe Green
+    };
 
     const handleScan = async (target, startPort, endPort, scanTcp, scanUdp, commonPortsOnly) => {
         setIsScanning(true);
@@ -194,7 +234,7 @@ function App() {
                 <div className="lg:col-span-8 flex flex-col gap-6 min-h-0">
                     
                     {/* Top Stats Dashboard */}
-                    <div className="grid grid-cols-2 gap-6 shrink-0">
+                    <div className={`grid ${(scanMode === 'port' && hasScanned && !isScanning && results.length > 0) ? "grid-cols-3" : "grid-cols-2"} gap-6 shrink-0`}>
                         <div className="bg-[var(--bg-secondary)] border border-[#333] rounded-xl p-6 shadow-lg flex flex-col justify-center">
                             <div className="text-[var(--text-secondary)] text-sm font-semibold mb-2 uppercase tracking-wider">Status</div>
                             {isScanning ? (
@@ -222,6 +262,21 @@ function App() {
                                 {hasScanned && !isScanning ? results.length : '-'}
                             </div>
                         </div>
+
+                        {scanMode === 'port' && hasScanned && !isScanning && results.length > 0 && (
+                            <div className="bg-[var(--bg-secondary)] border border-[#333] rounded-xl p-6 shadow-lg flex flex-col items-center justify-center relative overflow-hidden group">
+                                <div className="absolute inset-0 opacity-10 group-hover:opacity-20 transition-opacity bg-gradient-to-t from-transparent" style={{ backgroundImage: `linear-gradient(to top, transparent, ${getScoreColor(threatScore)})` }}></div>
+                                <div className="text-[var(--text-secondary)] text-sm font-semibold mb-3 uppercase tracking-wider z-10 w-full text-left">Threat Score</div>
+                                
+                                {/* CSS Speedometer Ring */}
+                                <div className="relative w-24 h-24 rounded-full flex items-center justify-center z-10" style={{ background: `conic-gradient(${getScoreColor(threatScore)} ${threatScore}%, #222 ${threatScore}%)` }}>
+                                    <div className="absolute w-20 h-20 bg-[var(--bg-secondary)] rounded-full flex flex-col items-center justify-center">
+                                        <span className="text-2xl font-bold font-mono tracking-tighter" style={{ color: getScoreColor(threatScore) }}>{threatScore}</span>
+                                        <span className="text-[10px] text-[#888] -mt-1 uppercase">/ 100</span>
+                                    </div>
+                                </div>
+                            </div>
+                        )}
                     </div>
 
                     {/* Scan Results Area */}
@@ -265,16 +320,8 @@ function App() {
                                 {scanMode === 'port' ? (
                                     <ResultsTable results={results} />
                                 ) : (
-                                    <div className="grid grid-cols-2 lg:grid-cols-3 gap-4 p-2 animate-fade-in">
-                                        {results.map((ip, idx) => (
-                                            <div key={idx} className="bg-black/60 border border-[var(--accent-orange)]/40 p-4 rounded-lg flex items-center justify-between hover:border-[var(--accent-orange)] transition-colors cursor-pointer group shadow-lg">
-                                                <div className="flex items-center gap-3">
-                                                    <div className="w-2 h-2 rounded-full bg-[#0aff0a] animate-pulse"></div>
-                                                    <span className="font-mono text-white text-lg tracking-wide">{ip}</span>
-                                                </div>
-                                                <Globe className="w-5 h-5 text-[var(--accent-orange)] opacity-50 group-hover:opacity-100 transition-opacity" />
-                                            </div>
-                                        ))}
+                                    <div className="animate-fade-in w-full h-full p-1">
+                                        <NetworkGraph hosts={results} subnet={scanStats.target} />
                                     </div>
                                 )}
                             </div>
