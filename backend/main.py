@@ -132,6 +132,7 @@ def download_pdf(data: ReportData):
                 service = port_info.get('service', 'N/A')
                 attack_vector = port_info.get('attack_vector', 'N/A')
                 vulnerability_check = port_info.get('vulnerability_check', 'N/A')
+                cve_data = port_info.get('cve_data', [])
 
                 pdf.set_font("Arial", "B", 12)
                 pdf.cell(0, 10, f"Port {port} - {service}", 0, 1)
@@ -139,6 +140,16 @@ def download_pdf(data: ReportData):
                 pdf.set_font("Arial", "", 10)
                 pdf.multi_cell(0, 5, f"    Attack Vector: {attack_vector}", 0, 1)
                 pdf.multi_cell(0, 5, f"    Vulnerability: {vulnerability_check}", 0, 1)
+                
+                if cve_data:
+                    pdf.set_font("Arial", "B", 10)
+                    pdf.cell(0, 8, "    Live CVE Data (NIST NVD):", 0, 1)
+                    pdf.set_font("Arial", "", 9)
+                    for cve in cve_data:
+                        cve_id = cve.get('id', '')
+                        desc = cve.get('description', '')
+                        pdf.multi_cell(0, 5, f"      - [{cve_id}]: {desc}", 0, 1)
+
                 pdf.ln(5)
 
         # Save PDF to a temporary file

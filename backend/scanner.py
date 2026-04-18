@@ -1,5 +1,9 @@
 import socket
 import asyncio
+import urllib.request
+import urllib.parse
+import json
+import re
 from backend.analysis import analyze_port
 
 # List of common ports to check if "Common Ports Only" is selected
@@ -10,6 +14,46 @@ COMMON_PORTS = [
     1433, 1434, 1521, 1701, 1723, 3306, 3389, 5060, 5061, 5900, 8080, 8443
 ]
 
+def parse_banner_keyword(banner: str) -> str:
+    if not banner or "No Banner" in banner or "UDP Response" in banner:
+        return ""
+    # Strip non-alphanumeric, keep dots and spaces
+    clean = re.sub(r'[^a-zA-Z0-9\.\s]', ' ', banner).strip()
+    words = clean.split()
+    if not words:
+        return ""
+    keyword = " ".join(words[:2]) # Take the first two words (e.g. OpenSSH 8.2)
+    if len(keyword) < 3:
+        return ""
+    return keyword
+
+def fetch_cves_sync(keyword: str):
+    if not keyword:
+        return []
+    url = f"https://services.nvd.nist.gov/rest/json/cves/2.0?keywordSearch={urllib.parse.quote(keyword)}&resultsPerPage=3"
+    try:
+        req = urllib.request.Request(url, headers={'User-Agent': 'Mozilla/5.0 SentinelAudit/1.0'})
+        with urllib.request.urlopen(req, timeout=3.0) as response:
+            data = json.loads(response.read().decode())
+            vulns = data.get("vulnerabilities", [])
+            results = []
+            for v in vulns:
+                cve_data = v.get("cve", {})
+                cve_id = cve_data.get("id", "Unknown CVE")
+                descriptions = cve_data.get("descriptions", [])
+                desc_text = descriptions[0].get("value", "No description available.") if descriptions else "No description available."
+                results.append({"id": cve_id, "description": desc_text})
+            return results
+    except Exception:
+        return []
+
+async def fetch_cves(banner: str):
+    keyword = parse_banner_keyword(banner)
+    if not keyword:
+        return []
+    return await asyncio.to_thread(fetch_cves_sync, keyword)
+
+
 class PortScanner:
     def __init__(self, concurrency_limit=1000):
         self.concurrency_limit = concurrency_limit
@@ -17,7 +61,6 @@ class PortScanner:
     async def scan_target(self, target: str, start_port: int, end_port: int, scan_tcp: bool, scan_udp: bool, common_ports_only: bool, progress_callback=None, check_cancel=None):
         results = []
         
-        # Determine which ports to scan
         if common_ports_only:
             ports_to_scan = sorted(list(set(COMMON_PORTS)))
         else:
@@ -29,7 +72,6 @@ class PortScanner:
         
         current_scan = 0
         
-        # We don't need a heavy thread lock in Asyncio for simple int increments
         def update_progress():
             nonlocal current_scan
             current_scan += 1
@@ -44,12 +86,10 @@ class PortScanner:
             async with sem:
                 result = None
                 try:
-                    # Connect with a fast timeout (200ms)
                     fut = asyncio.open_connection(target, port)
                     reader, writer = await asyncio.wait_for(fut, timeout=0.2)
                     
                     try:
-                        # Try to grab banner
                         banner_fut = reader.read(1024)
                         data = await asyncio.wait_for(banner_fut, timeout=0.1)
                         if data:
@@ -65,15 +105,19 @@ class PortScanner:
                         except Exception:
                             pass
 
+                    # Fetch CVES from NIST API based on grabbed banner
+                    cve_data = await fetch_cves(banner)
                     analysis = analyze_port(port, banner)
+                    
                     result = {
                         "port": port,
                         "service": f"{analysis['service']} (TCP)",
                         "banner": banner,
+                        "cve_data": cve_data,
                         "attack_vector": analysis["attack_vector"],
                         "vulnerability_check": analysis["vulnerability_check"]
                     }
-                except (asyncio.TimeoutError, ConnectionRefusedError, OSError, Exception) as e:
+                except (asyncio.TimeoutError, ConnectionRefusedError, OSError, Exception):
                     pass
                 update_progress()
                 return result
@@ -109,8 +153,6 @@ class PortScanner:
                         timeout=0.2
                     )
                     transport.sendto(b"")
-                    
-                    # wait for response (0.5s overall UDP ping)
                     await asyncio.wait_for(protocol.response_received.wait(), timeout=0.5)
                     
                     banner = "UDP Response Detected"
@@ -119,6 +161,7 @@ class PortScanner:
                         "port": port,
                         "service": f"{analysis['service']} (UDP)",
                         "banner": banner,
+                        "cve_data": [], # No banner for UDP usually
                         "attack_vector": analysis["attack_vector"],
                         "vulnerability_check": "UDP Service Open. Vulnerable to amplification attacks if public."
                     }
@@ -143,7 +186,5 @@ class PortScanner:
                 if res:
                     results.append(res)
                     
-        # Sort results by port number so they appear in order
         results.sort(key=lambda x: x["port"])
-        
         return results

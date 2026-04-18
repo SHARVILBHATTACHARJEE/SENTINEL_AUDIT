@@ -102,6 +102,31 @@ const ResultsTable = ({ results }) => {
                                     {selectedResult.banner || 'No banner retrieved.'}
                                 </div>
                             </div>
+                            
+                            {/* Live NIST NVD CVE Data */}
+                            {selectedResult.cve_data !== undefined && (
+                                <div className="border border-[var(--accent-orange)]/30 bg-[var(--accent-orange)]/5 p-5 rounded-lg">
+                                    <h4 className="flex items-center gap-2 text-[var(--accent-orange)] font-semibold mb-3 border-b border-[var(--accent-orange)]/20 pb-2">
+                                        <AlertTriangle className="w-5 h-5" />
+                                        Live CVE Intelligence (NIST Database)
+                                    </h4>
+                                    
+                                    {selectedResult.cve_data && selectedResult.cve_data.length > 0 ? (
+                                        <div className="space-y-4">
+                                            {selectedResult.cve_data.map((cve, i) => (
+                                                <div key={i} className="bg-black/40 border border-[#333] p-3 rounded">
+                                                    <div className="text-sm font-bold text-[#ff4444] mb-1 selectable-text">{cve.id}</div>
+                                                    <div className="text-xs text-[var(--text-secondary)] leading-relaxed selectable-text">{cve.description}</div>
+                                                </div>
+                                            ))}
+                                        </div>
+                                    ) : (
+                                        <div className="text-sm text-[var(--text-secondary)] italic">
+                                            No verified CVEs found directly matching the grabbed banner software version. Assessment relies on generic architecture vectors below.
+                                        </div>
+                                    )}
+                                </div>
+                            )}
 
                             {/* Vulnerability Assessment */}
                             <div className="border border-[var(--accent-red)]/30 bg-[var(--accent-red)]/5 p-5 rounded-lg">
