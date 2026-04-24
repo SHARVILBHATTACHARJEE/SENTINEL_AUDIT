@@ -286,7 +286,7 @@ function App() {
                                 <div className="w-1.5 h-6 bg-[#666] rounded-full"></div>
                                 <h2 className="text-lg font-semibold tracking-wide">RESULTS: <span className="text-[var(--text-secondary)] font-normal selectable-text">{scanStats.target || 'None'}</span></h2>
                             </div>
-                            {!isScanning && hasScanned && results.length > 0 && (
+                            {!isScanning && hasScanned && results.length > 0 && scanMode === 'port' && (
                                 <button onClick={handleDownloadPdf} className="flex items-center gap-2 text-sm text-black bg-white px-4 py-2 rounded font-medium hover:bg-gray-200 transition-colors cursor-pointer">
                                     <Download className="w-4 h-4" />
                                     Download PDF

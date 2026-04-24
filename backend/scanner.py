@@ -25,7 +25,7 @@ def parse_banner_keyword(banner: str) -> str:
     words = [w for w in words if not re.match(r'^\d+$', w)]
     
     # Filter out common noise protocols or generic terms
-    noise = {"esmtp", "smtp", "http", "ftp", "scanme.nmap.org", "ubuntu", "debian", "welcome", "ready"}
+    noise = {"esmtp", "smtp", "http", "https", "ftp", "scanme.nmap.org", "ubuntu", "debian", "welcome", "ready", "server", "bad", "request"}
     valid_words = [w for w in words if w.lower() not in noise]
 
     if not valid_words:
@@ -83,7 +83,7 @@ async def fetch_cves(banner: str):
 
 
 class PortScanner:
-    def __init__(self, concurrency_limit=1000):
+    def __init__(self, concurrency_limit=800):
         self.concurrency_limit = concurrency_limit
 
     async def scan_target(self, target: str, start_port: int, end_port: int, scan_tcp: bool, scan_udp: bool, common_ports_only: bool, progress_callback=None, check_cancel=None):
@@ -114,9 +114,9 @@ class PortScanner:
             async with sem:
                 result = None
                 try:
-                    # Give remote servers up to 0.8s to establish the TCP handshake
+                    # Give remote servers up to 1.5s to establish the TCP handshake
                     fut = asyncio.open_connection(target, port)
-                    reader, writer = await asyncio.wait_for(fut, timeout=0.8)
+                    reader, writer = await asyncio.wait_for(fut, timeout=1.5)
                     
                     try:
                         # Wait up to 1.0s for the server to reply with its software banner
@@ -127,7 +127,17 @@ class PortScanner:
                         else:
                             banner = "No Banner (TCP)"
                     except (asyncio.TimeoutError, Exception):
-                        banner = "No Banner (TCP)"
+                        # Try sending a generic probe to trigger a response (e.g., for HTTP services)
+                        try:
+                            writer.write(b"GET / HTTP/1.1\r\n\r\n")
+                            await writer.drain()
+                            data = await asyncio.wait_for(reader.read(1024), timeout=1.0)
+                            if data:
+                                banner = data.decode(errors='ignore').strip()
+                            else:
+                                banner = "No Banner (TCP)"
+                        except Exception:
+                            banner = "No Banner (TCP)"
                     finally:
                         writer.close()
                         try:
@@ -151,6 +161,16 @@ class PortScanner:
                         base_severity = "HIGH"
                     elif vuln_data.get("attack_vector") != "Unknown / Target Dependent":
                         base_severity = "MEDIUM"
+
+                    # Upgrade severity based on live NIST CVE Data (if any high-scoring CVEs were found)
+                    for cve in cve_data:
+                        score = cve.get("baseScore", 0.0)
+                        if score >= 9.0:
+                            base_severity = "CRITICAL"
+                        elif score >= 7.0 and base_severity not in ["CRITICAL"]:
+                            base_severity = "HIGH"
+                        elif score >= 4.0 and base_severity not in ["CRITICAL", "HIGH"]:
+                            base_severity = "MEDIUM"
 
                     result = {
                         "port": port,
