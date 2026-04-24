@@ -4,7 +4,12 @@ import urllib.request
 import urllib.parse
 import json
 import re
+from concurrent.futures import ThreadPoolExecutor
 from backend.analysis import analyze_port
+
+# Create a dedicated pool for network-intensive API calls
+# This allows hundreds of CVE lookups to happen in parallel
+cve_executor = ThreadPoolExecutor(max_workers=500)
 
 # List of common ports to check if "Common Ports Only" is selected
 # Includes a mix of TCP and UDP ports
@@ -79,11 +84,12 @@ async def fetch_cves(banner: str):
     keyword = parse_banner_keyword(banner)
     if not keyword:
         return []
-    return await asyncio.to_thread(fetch_cves_sync, keyword)
+    loop = asyncio.get_running_loop()
+    return await loop.run_in_executor(cve_executor, fetch_cves_sync, keyword)
 
 
 class PortScanner:
-    def __init__(self, concurrency_limit=800):
+    def __init__(self, concurrency_limit=2000):
         self.concurrency_limit = concurrency_limit
 
     async def scan_target(self, target: str, start_port: int, end_port: int, scan_tcp: bool, scan_udp: bool, common_ports_only: bool, progress_callback=None, check_cancel=None):

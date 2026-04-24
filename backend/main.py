@@ -11,6 +11,7 @@ import sys
 import multiprocessing
 import threading
 import uvicorn
+import asyncio
 
 # Import your custom logic
 # Ensure backend folder has an __init__.py file
@@ -130,60 +131,64 @@ async def run_ping_sweep(request: PingSweepRequest):
         "alive_hosts": alive_hosts
     }
 
+def generate_pdf_sync(data: ReportData) -> str:
+    pdf = FPDF()
+    pdf.add_page()
+    pdf.set_font("Arial", "B", 16)
+
+    pdf.cell(0, 10, "Sentinel Audit Report", 0, 1, "C")
+    pdf.ln(10)
+
+    pdf.set_font("Arial", "", 12)
+    pdf.cell(0, 10, f"Target IP: {data.target}", 0, 1)
+    pdf.cell(0, 10, f"Scan Time: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}", 0, 1)
+    pdf.cell(0, 10, f"Scanned Ports: {data.scanned_range}", 0, 1)
+    pdf.ln(10)
+
+    pdf.set_font("Arial", "B", 14)
+    pdf.cell(0, 10, "Open Ports & Vulnerabilities", 0, 1)
+    pdf.ln(5)
+
+    pdf.set_font("Arial", "", 10)
+    
+    if data.results:
+        # Sort results by port number
+        sorted_results = sorted(data.results, key=lambda x: x['port'])
+
+        for port_info in sorted_results:
+            port = port_info.get('port', 'N/A')
+            service = port_info.get('service', 'N/A')
+            attack_vector = port_info.get('attack_vector', 'N/A')
+            vulnerability_check = port_info.get('vulnerability_check', 'N/A')
+            cve_data = port_info.get('cve_data', [])
+
+            pdf.set_font("Arial", "B", 12)
+            pdf.cell(0, 10, f"Port {port} - {service}", 0, 1)
+            
+            pdf.set_font("Arial", "", 10)
+            pdf.multi_cell(0, 5, f"    Attack Vector: {attack_vector}", 0, 1)
+            pdf.multi_cell(0, 5, f"    Vulnerability: {vulnerability_check}", 0, 1)
+            
+            if cve_data:
+                pdf.set_font("Arial", "B", 10)
+                pdf.cell(0, 8, "    Live CVE Data (NIST NVD):", 0, 1)
+                pdf.set_font("Arial", "", 9)
+                for cve in cve_data:
+                    cve_id = cve.get('id', '')
+                    desc = cve.get('description', '')
+                    pdf.multi_cell(0, 5, f"      - [{cve_id}]: {desc}", 0, 1)
+
+            pdf.ln(5)
+
+    # Save PDF to a temporary file
+    temp_pdf_path = "report.pdf"
+    pdf.output(temp_pdf_path)
+    return temp_pdf_path
+
 @api_router.post("/download/pdf")
-def download_pdf(data: ReportData):
+async def download_pdf(data: ReportData):
     try:
-        pdf = FPDF()
-        pdf.add_page()
-        pdf.set_font("Arial", "B", 16)
-
-        pdf.cell(0, 10, "Sentinel Audit Report", 0, 1, "C")
-        pdf.ln(10)
-
-        pdf.set_font("Arial", "", 12)
-        pdf.cell(0, 10, f"Target IP: {data.target}", 0, 1)
-        pdf.cell(0, 10, f"Scan Time: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}", 0, 1)
-        pdf.cell(0, 10, f"Scanned Ports: {data.scanned_range}", 0, 1)
-        pdf.ln(10)
-
-        pdf.set_font("Arial", "B", 14)
-        pdf.cell(0, 10, "Open Ports & Vulnerabilities", 0, 1)
-        pdf.ln(5)
-
-        pdf.set_font("Arial", "", 10)
-        
-        if data.results:
-            # Sort results by port number
-            sorted_results = sorted(data.results, key=lambda x: x['port'])
-
-            for port_info in sorted_results:
-                port = port_info.get('port', 'N/A')
-                service = port_info.get('service', 'N/A')
-                attack_vector = port_info.get('attack_vector', 'N/A')
-                vulnerability_check = port_info.get('vulnerability_check', 'N/A')
-                cve_data = port_info.get('cve_data', [])
-
-                pdf.set_font("Arial", "B", 12)
-                pdf.cell(0, 10, f"Port {port} - {service}", 0, 1)
-                
-                pdf.set_font("Arial", "", 10)
-                pdf.multi_cell(0, 5, f"    Attack Vector: {attack_vector}", 0, 1)
-                pdf.multi_cell(0, 5, f"    Vulnerability: {vulnerability_check}", 0, 1)
-                
-                if cve_data:
-                    pdf.set_font("Arial", "B", 10)
-                    pdf.cell(0, 8, "    Live CVE Data (NIST NVD):", 0, 1)
-                    pdf.set_font("Arial", "", 9)
-                    for cve in cve_data:
-                        cve_id = cve.get('id', '')
-                        desc = cve.get('description', '')
-                        pdf.multi_cell(0, 5, f"      - [{cve_id}]: {desc}", 0, 1)
-
-                pdf.ln(5)
-
-        # Save PDF to a temporary file
-        temp_pdf_path = "report.pdf"
-        pdf.output(temp_pdf_path)
+        temp_pdf_path = await asyncio.to_thread(generate_pdf_sync, data)
 
         return FileResponse(
             temp_pdf_path,
